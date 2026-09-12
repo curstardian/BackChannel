@@ -1,0 +1,5 @@
+node_modules/
+data/store.json
+data/agents.json
+data/master.key
+data/

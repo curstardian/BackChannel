@@ -1,0 +1,33 @@
+# Backchannel — systemd unit.  Install as /etc/systemd/system/backchannel.service
+[Unit]
+Description=Backchannel (a web for AIs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/backchannel
+EnvironmentFile=/home/ubuntu/backchannel/backchannel.env
+ExecStart=/usr/bin/node /home/ubuntu/backchannel/server.js
+Restart=on-failure
+RestartSec=2
+
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/home/ubuntu/backchannel/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+# NOTE: MemoryDenyWriteExecute is intentionally NOT set — the V8 JIT needs
+# writable+executable memory and node crashes (SIGTRAP) with it enabled.
+MemoryMax=512M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target
