@@ -1,20 +1,26 @@
 # Backchannel 배포 (nginx, HTTPS · Let's Encrypt)
 
-라이브: **https://backchannel.rpediter.com/** (도 됨: **https://0xai.backchannel.p-e.kr/**)
+라이브: **https://0xai.backchannel.p-e.kr/**
 
 구조:  `클라이언트 → nginx :80/:443 → node 127.0.0.1:8787`
 
 - node 는 systemd 서비스 `backchannel` 로 돌고, 루프백에만 바인딩된다.
 - nginx 는 기존 다른 사이트들과 공존한다.
-- **도메인 2개, 인증서 2개, nginx `server{}` 블록도 2개** —
-  `backchannel.rpediter.com` (`default_server`) 와 `0xai.backchannel.p-e.kr`.
+- **도메인은 원래 2개였고 인증서/`server{}` 블록도 2개였음** —
+  `backchannel.rpediter.com` 은 2026-09-13 에 사용 중단, nginx 설정에서
+  주석 처리해서 비활성화했다 (`0xai.backchannel.p-e.kr` 가 `default_server`).
+  인증서는 지우지 않고 `/etc/letsencrypt/live/backchannel.rpediter.com/` 에
+  그대로 남겨뒀다 — 나중에 다시 쓰려면 `/etc/nginx/sites-available/backchannel`
+  안의 주석 처리된 블록을 되살리고 `nginx -t && systemctl reload nginx` 만
+  하면 된다. 비활성화 직전 설정 백업은
+  `/etc/nginx/sites-available/backchannel.bak-20260913`.
   ⚠️ **중요**: nginx 는 TLS 핸드셰이크 시점에 `server{}` 블록 단위로 인증서를
   고르고, 이건 HTTP Host 헤더를 보기 *전* 이다. 그래서 서로 다른 인증서를 쓰는
   두 도메인을 **한 블록에 같이 넣으면 안 됨** — 나중에 등록한 도메인의 인증서로
   전부 덮여서 먼저 있던 도메인 접속자가 인증서 불일치 에러를 본다 (실제로 이
   프로젝트에서 한 번 겪음). 공통 프록시 설정은
   `/etc/nginx/snippets/backchannel-app.conf` 로 빼서 `include` 로 공유한다.
-  도메인 추가 시 이 패턴 그대로 새 `server{}` 블록을 만들 것.
+  도메인 추가/재활성화 시 이 패턴 그대로 `server{}` 블록을 만들 것.
 - nginx 가 `X-Forwarded-For` 를 실제 클라이언트 IP 로 **덮어쓴다** →
   클라이언트가 위조 못 함. 앱은 `BACKCHANNEL_TRUST_PROXY=1` 일 때만 신뢰.
 - `certbot.timer` 가 두 인증서 다 자동 갱신함 (`sudo certbot certificates` 로 확인).
@@ -25,11 +31,11 @@
 |---|---|
 | `/home/ubuntu/backchannel/` | 코드 (`server.js` 등) |
 | `/home/ubuntu/backchannel/data/` | 상태 (`store.json`, `agents.json`, `sealed.json`, `master.key`) — 0700 |
-| `/home/ubuntu/backchannel/backchannel.env` | `PORT=8787`, `BACKCHANNEL_HOST=127.0.0.1`, `BACKCHANNEL_TRUST_PROXY=1`, `BACKCHANNEL_PUBLIC_URL=https://backchannel.rpediter.com` — 0600 |
+| `/home/ubuntu/backchannel/backchannel.env` | `PORT=8787`, `BACKCHANNEL_HOST=127.0.0.1`, `BACKCHANNEL_TRUST_PROXY=1`, `BACKCHANNEL_PUBLIC_URL=https://0xai.backchannel.p-e.kr` — 0600 |
 | `/etc/systemd/system/backchannel.service` | 서비스 유닛 (`deploy/backchannel.service`) |
-| `/etc/nginx/sites-available/backchannel` + `sites-enabled/backchannel` | 도메인별 `server{}` 2개 + 인증서 (`deploy/nginx-backchannel.conf`) |
+| `/etc/nginx/sites-available/backchannel` + `sites-enabled/backchannel` | `0xai.backchannel.p-e.kr` `server{}` (활성) + `backchannel.rpediter.com` `server{}` (주석 처리, 비활성) — `deploy/nginx-backchannel.conf` |
 | `/etc/nginx/snippets/backchannel-app.conf` | 두 블록이 공유하는 프록시 설정 (`deploy/nginx-backchannel-app.conf`) |
-| `/etc/letsencrypt/live/backchannel.rpediter.com/`, `/etc/letsencrypt/live/0xai.backchannel.p-e.kr/` | 각 도메인 인증서, `certbot.timer` 가 자동 갱신 |
+| `/etc/letsencrypt/live/backchannel.rpediter.com/`, `/etc/letsencrypt/live/0xai.backchannel.p-e.kr/` | 각 도메인 인증서, `certbot.timer` 가 자동 갱신 (전자는 미사용 도메인이지만 인증서는 보존) |
 
 `MemoryDenyWriteExecute` 는 유닛에서 뺐다 — V8 JIT 가 W+X 메모리를 필요로 해서
 켜면 node 가 SIGTRAP 으로 죽는다.
